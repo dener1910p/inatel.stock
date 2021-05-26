@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.inatel.stock.exception.GenericError;
+import com.example.inatel.stock.exception.NotFoundException;
+import com.example.inatel.stock.exception.SucceededWarning;
 import com.example.inatel.stock.model.Stock;
 import com.example.inatel.stock.reporitory.StockRepository;
 
@@ -25,65 +28,74 @@ public class StockController {
 
 	@Autowired
 	StockRepository stockRepository;
+	String message;
+	List<Stock> stocksList;
 
+	// Read all stocks
 	@GetMapping("/stock")
 	public List<Stock> getAllStocks() {
 		return this.stockRepository.findAll();
 	}
 
+	// Read the stocks by name
 	@GetMapping("/stockByName")
 	public ResponseEntity<List<Stock>> getAllStocks(@RequestParam("name") String name) {
 		try {
-			List<Stock> stocksList = new ArrayList<Stock>();
+			stocksList = new ArrayList<Stock>();
 			stockRepository.findByName(name).forEach(stocksList::add);
 			if (stocksList.isEmpty()) {
-				return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+				message = "The Stock cound not be found with name: "+name;
 			}
 			return new ResponseEntity<>(stocksList, HttpStatus.OK);
-		} catch (Exception e) {
-
-			return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+		} catch (Exception e) {			
+			throw new GenericError("Something went wrong and was not possible to find the Stock! "+ message);
 		}
 	}
 
+	// Create new Stock
 	@PostMapping("/stock")
 	public ResponseEntity<Stock> createStock(@RequestBody Stock stock) {
+		stocksList = new ArrayList<Stock>();
+		stockRepository.findByName(stock.getName()).forEach(stocksList::add);
 		try {
-			if(stock.getName().isEmpty()||stock.getName().isBlank()) {
-				return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
-			}else {
+			if (stock.getName().isEmpty() || stock.getName().isBlank()) {
+				throw new NotFoundException("The Stock name can not be blank or empty!");			
+			} else if (stocksList.size()>=1) {
+				throw new GenericError("Already exist a Stock created with the name: "+stock.getName());				
+			} else {
 				Stock stocknew = stockRepository.save(new Stock(stock.getName(), stock.getQuotes()));
-				return new ResponseEntity<>(stocknew, HttpStatus.CREATED);
+				throw new SucceededWarning("The following Stock was successfully created!" +stock.getName());
 			}
-		
 		} catch (Exception e) {
-			return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+			throw new GenericError("Something went wrong and was not possible to insert the Stock! "+stock.getName());
 		}
 	}
 
+	// Update quotes
 	@PutMapping("/stockUpdate")
 	public ResponseEntity<Stock> updateTutorial(@RequestParam("name") String name, @RequestBody Stock stockUpdate) {
 		List<Stock> stock = stockRepository.findByName(name);
 
 		if (stock.isEmpty()) {
-			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+			throw new NotFoundException("The Stock name can not be blank or empty!");
 
 		} else {
 			Stock s = new Stock();
 			s.setName(name);
 			s.setQuotes(stockUpdate.getQuotes());
-			return new ResponseEntity<>(stockRepository.save(s), HttpStatus.OK);
+			throw new SucceededWarning("The following Stock was successfully updated!" + name);
 		}
 	}
 
+	// Delete by Name
 	@Transactional
 	@DeleteMapping("/stock")
 	public ResponseEntity<HttpStatus> deleteStock(@RequestParam("name") String name) {
 		try {
-			stockRepository.deleteByName(name);
-			return new ResponseEntity<>(HttpStatus.OK);
+			stockRepository.deleteByName(name);	
+			throw new SucceededWarning("The following Stock was successfully deleted!" + name);
 		} catch (Exception e) {
-			return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+			throw new GenericError("Something went wrong and was not possible to delete the following Stock! "+name);
 		}
 	}
 
